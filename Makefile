@@ -44,10 +44,9 @@ test_stress: test_stress.c dmm.o
 	$(CC) $(CFLAGS)  -o test_stress test_stress.c dmm.o
 test_stress_time: test_stress_time.c dmm.o 
 	$(CC) $(CFLAGS)  -o test_stress_time test_stress_time.c dmm.o
-test_o1: test_o1.c dmm.o 
-	$(CC) $(CFLAGS) -g  -o test_o1 test_o1.c dmm.o
-test_peak: test_peak.c dmm.o 
-	$(CC) $(CFLAGS) -g  -o test_peak test_peak.c dmm.o
+
+gradescope:
+	zip submission.zip dmm.c dmm.h
 
 basicdmmtest: basicdmmtest.c dmm.o
 	$(CC) $(CFLAGS) -o basicdmmtest basicdmmtest.c dmm.o

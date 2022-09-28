@@ -32,10 +32,10 @@ static metadata_t* freelist = NULL;
 //requested_size need to be aligned
 void allocate_with_split(metadata_t* target_block, size_t requested_size) {
   //Only split if request size smaller than available in target block, and still leave space for a second header
-  if ((target_block->size - requested_size) >= METADATA_T_ALIGNED){ //If splitable to 2 blocks
+  if ((target_block->size - requested_size) >= (int)METADATA_T_ALIGNED){ //If splitable to 2 blocks
     //Get a pointer to remaining 2nd block, and its size (except for header)
     metadata_t* split_remain_block = (metadata_t*)((char*)target_block + requested_size);
-    size_t split_remain_size = target_block->size - requested_size - METADATA_T_ALIGNED;
+    size_t split_remain_size = target_block->size - requested_size - (int)METADATA_T_ALIGNED;
 
     //Set header of split away free block
     split_remain_block->size = split_remain_size;
@@ -57,14 +57,15 @@ void allocate_with_split(metadata_t* target_block, size_t requested_size) {
       next_free->prev = split_remain_block;
     }
 
-    //Set prev and next of allocated to NULL
+    //Set prev and next of allocated to NULL, size to smaller allocated size
+    target_block->size = requested_size - (int)METADATA_T_ALIGNED;
     target_block->prev = NULL;
     target_block->next = NULL;
   } else { //If the exact same size, or not enough for split off a header
-    //Set header of previous free block
+    // if start of freelist, set freelist to the next block (or NULL, if also the end of freelist)
     if (target_block == freelist){
       freelist = target_block->next;
-    } else {
+    } else { //Set header of previous free block (when target_block not the start of freelist)
       target_block->prev->next = target_block->next;
     }
    

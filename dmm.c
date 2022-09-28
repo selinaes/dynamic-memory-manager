@@ -29,6 +29,52 @@ typedef struct metadata {
 
 static metadata_t* freelist = NULL;
 
+//requested_size need to be aligned
+void allocate_with_split(metadata_t* target_block, size_t requested_size) {
+  //Only split if request size smaller than available in target block, and still leave space for a second header
+  if ((target_block->size - requested_size) >= METADATA_T_ALIGNED){ //If splitable to 2 blocks
+    //Get a pointer to remaining 2nd block, and its size (except for header)
+    metadata_t* split_remain_block = (metadata_t*)((char*)target_block + requested_size);
+    size_t split_remain_size = target_block->size - requested_size - METADATA_T_ALIGNED;
+
+    //Set header of split away free block
+    split_remain_block->size = split_remain_size;
+    split_remain_block->prev = target_block->prev;
+    split_remain_block->next = target_block->next;
+
+    //Update freelist head if target_block is head
+    if (target_block == freelist){
+      freelist = split_remain_block;
+    } else {
+      //Set header of previous free block
+      metadata_t* prev_free = target_block->prev;
+      prev_free->next = split_remain_block;
+    }
+    
+
+  } else { //If the exact same size, or not enough for split off a header
+    //Set header of previous free block
+    target_block->prev->next = target_block->next;
+
+    //Set header of next free block
+    target_block->next->prev = target_block->prev;
+  }
+}
+
+void* search(size_t requested_size) {
+  metadata_t* block = freelist;
+  do{
+    // if large enough, use it, otherwise search next block in freelist
+    if (requested_size <= block->size){
+      return block;
+    } else {
+      block = freelist->next;
+    }
+  } while (block->next != NULL);
+
+  return NULL;
+}
+
 void* dmalloc(size_t numbytes) {
 
   if(freelist == NULL) {
@@ -39,9 +85,19 @@ void* dmalloc(size_t numbytes) {
 
   assert(numbytes > 0);
 
-  /* your code here */
+  size_t request_block_size = ALIGN(numbytes);
 
-  return NULL;
+  //Search for suitable block size in free block list
+  metadata_t* block = search(request_block_size);
+
+  if (block == NULL){
+    return NULL;
+  }
+
+  //Allocate & Split
+  allocate_with_split(block, request_block_size);
+
+  return (metadata_t*)((char*)block + METADATA_T_ALIGNED);
 }
 
 void dfree(void* ptr) {

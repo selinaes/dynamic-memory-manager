@@ -18,7 +18,7 @@
  */
 
 typedef struct metadata {
-  size_t size;
+  size_t size; // not including header size
   struct metadata* next;
   struct metadata* prev;
 } metadata_t;
@@ -50,14 +50,32 @@ void allocate_with_split(metadata_t* target_block, size_t requested_size) {
       metadata_t* prev_free = target_block->prev;
       prev_free->next = split_remain_block;
     }
-    
 
+    //Set header of next of target_block
+    if (target_block->next != NULL) {
+      metadata_t* next_free = target_block->next;
+      next_free->prev = split_remain_block;
+    }
+
+    //Set prev and next of allocated to NULL
+    target_block->prev = NULL;
+    target_block->next = NULL;
   } else { //If the exact same size, or not enough for split off a header
     //Set header of previous free block
-    target_block->prev->next = target_block->next;
-
+    if (target_block == freelist){
+      freelist = target_block->next;
+    } else {
+      target_block->prev->next = target_block->next;
+    }
+   
     //Set header of next free block
-    target_block->next->prev = target_block->prev;
+    if (target_block->next != NULL) {
+      target_block->next->prev = target_block->prev;
+    }
+
+    //Set prev and next of allocated to NULL
+    target_block->prev = NULL;
+    target_block->next = NULL;
   }
 }
 
@@ -85,7 +103,8 @@ void* dmalloc(size_t numbytes) {
 
   assert(numbytes > 0);
 
-  size_t request_block_size = ALIGN(numbytes);
+  // We need to allocate a space that includes payload + header.
+  size_t request_block_size = ALIGN(numbytes) + METADATA_T_ALIGNED;
 
   //Search for suitable block size in free block list
   metadata_t* block = search(request_block_size);

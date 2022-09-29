@@ -81,16 +81,23 @@ void allocate_with_split(metadata_t* target_block, size_t requested_size) {
 }
 
 void* search(size_t requested_size) {
+  assert(requested_size >= (int)METADATA_T_ALIGNED
+    && "request block size must be no smaller than header size");
+  
+  if (freelist == NULL) { //case when no free block exist
+    return NULL;
+  }
+
   metadata_t* block = freelist;
-  do{
-    // if large enough, use it, otherwise search next block in freelist
+
+  while (block != NULL){ // enter this loop if cur block is not NULL (not past the last node)
     if (requested_size <= block->size){
       return block;
     } else {
-      block = freelist->next;
+      block = block->next;
     }
-  } while (block->next != NULL);
-
+  }
+  
   return NULL;
 }
 

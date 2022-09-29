@@ -34,7 +34,7 @@ void allocate_with_split(metadata_t* target_block, size_t requested_size) {
   //Only split if request size smaller than available in target block, and still leave space for a second header
   if ((target_block->size - requested_size) >= (int)METADATA_T_ALIGNED){ //If splitable to 2 blocks
     //Get a pointer to remaining 2nd block, and its size (except for header)
-    metadata_t* split_remain_block = (metadata_t*)((char*)target_block + requested_size);
+    metadata_t* split_remain_block = (metadata_t*)((char*)target_block + requested_size + METADATA_T_ALIGNED);
     size_t split_remain_size = target_block->size - requested_size - (int)METADATA_T_ALIGNED;
 
     //Set header of split away free block
@@ -57,8 +57,8 @@ void allocate_with_split(metadata_t* target_block, size_t requested_size) {
       next_free->prev = split_remain_block;
     }
 
-    //Set prev and next of allocated to NULL, size to smaller allocated size
-    target_block->size = requested_size - (int)METADATA_T_ALIGNED;
+    //Set prev and next of allocated to NULL, size to allocated size
+    target_block->size = requested_size;
     target_block->prev = NULL;
     target_block->next = NULL;
   } else { //If the exact same size, or not enough for split off a header
@@ -82,8 +82,6 @@ void allocate_with_split(metadata_t* target_block, size_t requested_size) {
 }
 
 void* search(size_t requested_size) {
-  assert(requested_size >= (int)METADATA_T_ALIGNED
-    && "request block size must be no smaller than header size");
   
   if (freelist == NULL) { //case when no free block exist
     return NULL;
@@ -112,8 +110,8 @@ void* dmalloc(size_t numbytes) {
 
   assert(numbytes > 0);
 
-  // We need to allocate a space that includes payload + header.
-  size_t request_block_size = ALIGN(numbytes) + METADATA_T_ALIGNED;
+  // We need to allocate a space that is aligned
+  size_t request_block_size = ALIGN(numbytes);
 
   //Search for suitable block size in free block list
   metadata_t* block = search(request_block_size);
@@ -124,7 +122,7 @@ void* dmalloc(size_t numbytes) {
 
   //Allocate & Split
   allocate_with_split(block, request_block_size);
-
+  // print_freelist(); 
   return ((char*)block + METADATA_T_ALIGNED);
 }
 
@@ -262,7 +260,7 @@ bool dmalloc_init() {
 // Warning: the NDEBUG flag also turns off assert protection.
 
 
-// void print_freelist(); 
+void print_freelist(); 
 
 #ifdef NDEBUG
 	#define DEBUG(M, ...)

@@ -77,6 +77,7 @@ void allocate_with_split(metadata_t* target_block, size_t requested_size) {
     //Set prev and next of allocated to NULL
     target_block->prev = NULL;
     target_block->next = NULL;
+
   }
 }
 
@@ -97,7 +98,7 @@ void* search(size_t requested_size) {
       block = block->next;
     }
   }
-  
+
   return NULL;
 }
 
@@ -124,11 +125,108 @@ void* dmalloc(size_t numbytes) {
   //Allocate & Split
   allocate_with_split(block, request_block_size);
 
-  return (metadata_t*)((char*)block + METADATA_T_ALIGNED);
+  return ((char*)block + METADATA_T_ALIGNED);
+}
+
+void coalesce(metadata_t* block) {
+  bool suc_is_free = false;
+  metadata_t* successor;
+  if (block->next != NULL){ // when block is not last in the list
+    // get successor block
+    successor = (metadata_t*)((char*)block + METADATA_T_ALIGNED + block->size);
+    // whether successor next in freelist
+    suc_is_free = (successor == block->next);
+  }
+  
+
+  bool pred_is_free = false;
+  if (block->prev != NULL){ // when block is not first in the list
+    // get block's prev free block's successor
+    metadata_t* prev_succ = (metadata_t*)((char*)block->prev + METADATA_T_ALIGNED + block->prev->size);
+    // whether prev's successor is current block (aka whether predecessor is free)
+    pred_is_free = (prev_succ == block);
+  }
+
+  // Case 1: both predecessor & successor allocated
+  if ((!suc_is_free) && (!pred_is_free)){
+    return;
+  } else if (suc_is_free && (!pred_is_free)){ // Case 2: only successor free, need to be coalesced
+    // New coalesced size
+    size_t coalesced_size = block->size + METADATA_T_ALIGNED +successor->size;
+    // Set size in coalesced block header
+    block->size = coalesced_size;
+    // Make coalesced block's next to point to successor's next
+    block->next = successor->next;
+    if (successor->next != NULL){
+      // Make successor's next to point its prev to coalesced block (only when successor has next)
+      successor->next->prev = block;
+    }
+  } else if ((!suc_is_free) && pred_is_free){ // Case 3: only predecessor free, need to be coalesced
+    metadata_t* predecessor = block->prev;
+    // New coalesced size
+    size_t coalesced_size = block->size + METADATA_T_ALIGNED +predecessor->size;
+    // Set size in coalesced block header (pred's header)
+    predecessor->size = coalesced_size;
+    // Make coalesced block's next to point to block's next
+    predecessor->next = block->next;
+    if (block->next != NULL){
+      // Make block's next to point its prev to coalesced block (only when block has next)
+      block->next->prev = predecessor;
+    }
+  } else if (suc_is_free && pred_is_free) { // Case 4: both predecessor and successor free, need to be coalesced
+    metadata_t* predecessor = block->prev;
+    // New coalesced_size
+    size_t coalesced_size = predecessor->size + METADATA_T_ALIGNED +block->size + METADATA_T_ALIGNED +successor->size;
+    // Set size in coalesced block header (pred's header)
+    predecessor->size = coalesced_size;
+    // Make coalesced block's next to point to successor's next
+    predecessor->next = successor->next;
+    if (successor->next != NULL){
+      // Make successor's next to point its prev to coalesced block (only when successor has next)
+      successor->next->prev = predecessor;
+    }
+  }
 }
 
 void dfree(void* ptr) {
-  /* your code here */
+   // Get the pointer to metadata of to-be-freed block
+  metadata_t* header = (metadata_t*)((char*)ptr - METADATA_T_ALIGNED);
+
+  // Inserting to-be-freed block into freelist
+  if (freelist == NULL) { // case if freelist is empty
+    freelist = header;
+    header->prev = NULL;
+    header->next = NULL;
+  } else {
+    metadata_t* block = freelist;
+    while (block < header && block->next != NULL) {
+      block = block->next;
+    }
+
+    if (block > header){ 
+      // print_freelist(); 
+      if (block->prev != NULL){ // insert to front of block
+        // block->prev->next = header;
+        metadata_t* prev_temp = block->prev;
+        // fprintf(stderr, "[DEBU] %p: ",prev_temp->next);
+        prev_temp->next = header; //prev has no next!
+        header->prev = block->prev;
+        header->next = block;
+        block->prev = header;
+      } else { // case where insert to front of list
+        block->prev = header;
+        header->next = block;
+        header->prev = NULL;
+        freelist = header;
+      }
+    } else if (block->next == NULL){ // insert to back of block, end of freelist
+      block->next = header;
+      header->prev = block;
+      header->next = NULL;
+    }
+  }
+  coalesce(header);
+  print_freelist();
 }
 
 /*
@@ -152,18 +250,19 @@ bool dmalloc_init() {
   freelist->next = NULL;
   freelist->prev = NULL;
   freelist->size = max_bytes-METADATA_T_ALIGNED;
+  print_freelist();
   return true;
 }
 
 
 /* for debugging; can be turned off through -NDEBUG flag*/
-/*
-
-This code is here for reference.  It may be useful.
-Warning: the NDEBUG flag also turns off assert protection.
 
 
-void print_freelist(); 
+// This code is here for reference.  It may be useful.
+// Warning: the NDEBUG flag also turns off assert protection.
+
+
+// void print_freelist(); 
 
 #ifdef NDEBUG
 	#define DEBUG(M, ...)
@@ -186,4 +285,4 @@ void print_freelist() {
   }
   DEBUG("\n");
 }
-*/
+

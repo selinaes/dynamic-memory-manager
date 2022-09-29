@@ -226,7 +226,7 @@ void dfree(void* ptr) {
     }
   }
   coalesce(header);
-  print_freelist();
+  // print_freelist();
 }
 
 /*
@@ -250,7 +250,7 @@ bool dmalloc_init() {
   freelist->next = NULL;
   freelist->prev = NULL;
   freelist->size = max_bytes-METADATA_T_ALIGNED;
-  print_freelist();
+  // print_freelist();
   return true;
 }
 
